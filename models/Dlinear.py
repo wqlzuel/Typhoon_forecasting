@@ -36,11 +36,11 @@ class series_decomp(nn.Module):
         return res, moving_mean
 
 class Model(nn.Module):
-    def __init__(self, seq_len, pred_len):
+    def __init__(self, configs):
         super(Model, self).__init__()
         # 1,7,2 -> 1,3,2
         # self.emb = nn.Linear(seq_len*2, 2)
-        self.s_MLP = nn.Linear(seq_len, pred_len)#LoraLinear(seq_len, pred_len, r=8)
+        self.s_MLP = nn.Linear(configs.seq_len, configs.pred_len)#LoraLinear(seq_len, pred_len, r=8)
 
         '''
             nn.Sequential(
@@ -51,12 +51,13 @@ class Model(nn.Module):
             nn.Linear(512, pred_len)
         )'''
 
-        self.t_MLP = nn.Linear(seq_len, pred_len)#LoraLinear(seq_len, pred_len, r=8)#nn.Linear(seq_len, pred_len)
+        self.t_MLP = nn.Linear(configs.seq_len, configs.pred_len)#LoraLinear(seq_len, pred_len, r=8)#nn.Linear(seq_len, pred_len)
         # Decomp
         kernel_size = 25
         self.decomp = series_decomp(kernel_size)
 
     def forward(self, x):
+        x = x[:,:,:-1]
         mean_enc = x.mean(1, keepdim=True).detach()  # B x 1 x E
         x = x - mean_enc
         std_enc = torch.sqrt(torch.var(x, dim=1, keepdim=True, unbiased=False) + 1e-5).detach()  # B x 1 x E
@@ -69,7 +70,7 @@ class Model(nn.Module):
         dec_out = (sea_out + tre_out).transpose(-1, 1)
 
         dec_out = dec_out * std_enc + mean_enc
-        return dec_out
+        return dec_out[:,:,:-1]
 
 class Dlinear(nn.Module):
     def __init__(self, seq_len, pred_len):
